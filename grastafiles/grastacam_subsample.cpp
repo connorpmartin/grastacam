@@ -191,6 +191,7 @@ while( 1 ) {
         if( !frame ) break;
 	//make the frame grayscale and scale correctly
 	cvCvtColor(frame,outbw,CV_BGR2GRAY);
+	//1/255 == 0.00392156862 != .0039
 	cvCvtScale(outbw,outg,.0039,0);//scale to 1/255
 	cvResize(outg,outgs);
 
@@ -211,15 +212,31 @@ while( 1 ) {
 	}
 //	fprintf(stderr,"use_number=%d\n",use_number);
 	
-	//perform step on B and then 
+	//perform a gradient step on w and s, as well as the dual. 
+	//Then update B, and repeat.
+
+	//NOTE: an intelligent subsampling strategy might be a nice improvement here.
+
+
 	if (turbo<5) {
+		//update using the entire image.
 		grasta_step (B,v,w,n,d,eta,rho,20);
 	}
 	else{
-		//iterate via a random subsample of the image.
+		//iterate via a random subsample of the image (by sample_percent).
 		grasta_step_subsample (B,v,w,n,d,eta,rho,40,use_index,use_number);
 	}
+	//Calculate U * w, our predicted background.
 	sgemv("N",&n,&d,&one,B,&n,w,&oneinc,&zero,Uw,&oneinc);
+
+	//Calculate an l0 norm of background vs image with a threshold of .05
+	//or by uncommenting, you use a sort of thresholded l1.
+
+	//The idea here is that the background should agree with the image most of the time.
+	//with some small and heavy spikes of error (the foreground)
+	//l1 and l0 norms penalize large errors less sharply than l2 norm,
+	//but penalize small errors more sharply than l2 norm.
+
 	s_l1_norm=0;	
 	for (ii=0;ii<n;ii++){
 		s[ii]=v[ii]-Uw[ii];
@@ -229,15 +246,28 @@ while( 1 ) {
 		}
 	}
 //	fprintf(stderr,"%f\n",s_l1_norm);
+
+
+	//if the error is too large, we're subsampling too heavily.
+	//move back to subsampling the entire image.
+
+	//NOTE: this is very 1-0. It might be better to decrement the size of a subsample if we're predicting too poorly.
+	//and vice versa.
+
 	if (s_l1_norm>n*.6){
 		turbo=0;		
 	}
 	else{
+		//Otherwise, 
 		turbo++;
 	}
 /*	for(jj=0;jj<n;jj++){	
 		g[jj]=g1[jj]-g2[jj];
 	}*/
+
+
+	//Display backgrounds and foregrounds.
+	//TODO: UPDATE FRONTEND
 	outgsb->imageData = (char*) Uw;
 	outgsb->imageDataOrigin = outgsb->imageData;
 	cvShowImage( "background?", outgsb);
@@ -255,11 +285,11 @@ while( 1 ) {
             break;
         switch( (char) c )
         {
-        case 'm':
+        case 'm': //increase sample percent after an iter
             sample_percent=sample_percent+.05;
 		printf("sample percent up %.8f \n",sample_percent);
             break;
-        case 'l':
+        case 'l': //decrease sample percent after an iter
             sample_percent=sample_percent-.05;
 		printf("sample percent down %.8f \n",sample_percent);
             break;
