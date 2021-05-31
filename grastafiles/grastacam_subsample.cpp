@@ -42,7 +42,7 @@ float *tB; //unused?
 
 float *pB; //unused?
 
-float *v; //our guess for the image. n x 1
+float *v; //the real image at each iteration
 
 float *w; //weights of the subspace (which form the image's background). d x 1
 
