@@ -1,4 +1,4 @@
-//fix frees!
+//fix frees
 
 void print_matrix_colmajor(int numrows,int numcols,float* M){
     int ii,jj;

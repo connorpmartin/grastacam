@@ -43,8 +43,8 @@ float *s; //our guess for the foreground of the image. n x 1
 //Image dimensions, height and width
 int m,p,n,d;
 
-int m=1.5*240;
-int p=1.5*320;
+m=1.5*240;
+p=1.5*320;
 
 
 //Vector dimension (pixels) in image.
@@ -115,6 +115,7 @@ for(int i=0;i<numIters;i++){
     for(int j=0;j<d;j++){
         rand_weights[j] = rand();
     }
+    //TODO: add foreground and noise
     //generate v as a random element of the subspace from data.
     sgemv("N",&n,&d,&one,data,&n,rand_weights,&oneinc,&zero,v,&oneinc);
 
