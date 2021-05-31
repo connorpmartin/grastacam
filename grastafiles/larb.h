@@ -266,10 +266,10 @@ end
 
 
 
-void larb_orthogonal_alt(float* B,int n,int d,float* v,float* w, float* s, float* y,float rho,float maxiter){//assumes B is an orthogonal matrix. 
+void larb_orthogonal_alt(float* U,int n,int d,float* v,float* w, float* s, float* y,float rho,float maxiter){//assumes U is an orthogonal matrix. USED
 	int ii=0,jj=0;
 //	float* y=(float*)calloc(n,sizeof(float));
-	float* u=(float*)calloc(n,sizeof(float));
+	float* Uw=(float*)calloc(n,sizeof(float));
 //	float* a=(float*)calloc(n,sizeof(float));
 	float* junk=(float*)calloc(n,sizeof(float));
 	float one=1.0f;
@@ -285,27 +285,27 @@ void larb_orthogonal_alt(float* B,int n,int d,float* v,float* w, float* s, float
 			junk[jj]=rho*(v[jj]-s[jj])-y[jj];
 		}
 	
-		//see page 8, equation 3.3. We don't need (B'B)^-1 because we assume orthogonal B.
-		//just multiplying by B^T
-		sgemv("T",&n,&d,&irho,B,&n,junk,&oneinc,&zero,w,&oneinc);//calculate w=(B'(rho(v-s)-y))/rho
+		//see page 8, equation 3.3. We don't need (U'U)^-1 because we assume orthogonal U.
+		//just multiplying by U^T
+		sgemv("T",&n,&d,&irho,U,&n,junk,&oneinc,&zero,w,&oneinc);//calculate w=(U'(rho(v-s)-y))/rho
 
 
 		//3.4:
-		//calculate the inside of 3.4: u = Bw
-		sgemv("N",&n,&d,&one,B,&n,w,&oneinc,&zero,u,&oneinc);
+		//calculate the inside of 3.4: Uw = U*w
+		sgemv("N",&n,&d,&one,U,&n,w,&oneinc,&zero,Uw,&oneinc);
 
 		//second stage: prepare junk for input to soft thresh.
 		for(jj=0;jj<n;jj++){	
-			junk[jj]=v[jj]-u[jj]-y[jj];
+			junk[jj]=v[jj]-Uw[jj]-y[jj];
 		}
 	
 		//soft threshold to get our s.
 		shrink(junk,s,1/(1+rho),n);
 
 
-		//we already calulated u = Bw, so we can just iterate and add.
+		//we already calulated u = Uw, so we can just iterate and add.
 		for(jj=0;jj<n;jj++){	
-			y[jj]=y[jj]+rho*(s[jj]+u[jj]-v[jj]);//
+			y[jj]=y[jj]+rho*(s[jj]+Uw[jj]-v[jj]);//
 		}
 /*
 		print_matrix_colmajor(n,1,w);
@@ -314,7 +314,7 @@ void larb_orthogonal_alt(float* B,int n,int d,float* v,float* w, float* s, float
 
 	}
 
-free(u);
+free(Uw);
 free(junk);
 
 }
@@ -327,10 +327,10 @@ free(junk);
 
 
 
-void larb_no_orthogonal_alt(float* sB,float* B,int n,int d,float* v,float* w, float* s, float* y,float rho,float maxiter){ 
+void larb_no_orthogonal_alt(float* sU,float* U,int n,int d,float* v,float* w, float* s, float* y,float rho,float maxiter){ // USED
 	int ii=0,jj=0;
 //	float* y=(float*)calloc(n,sizeof(float));
-	float* u=(float*)calloc(n,sizeof(float));
+	float* Uw=(float*)calloc(n,sizeof(float));
 //	float* a=(float*)calloc(n,sizeof(float));
 	float* junk=(float*)calloc(n,sizeof(float));
 	float one=1.0f;
@@ -346,31 +346,31 @@ void larb_no_orthogonal_alt(float* sB,float* B,int n,int d,float* v,float* w, fl
 			junk[jj]=rho*(v[jj]-s[jj])-y[jj];
 		}
 		
-		//multiply by the Monroe-Penrose pseudoinverse ((B'B)^T)^(-1) * B'
-		//so we don't assume orthogonality. This assumes invertibility of (B'B)^T (so we can't cut too many rows...).
+		//multiply by the Monroe-Penrose pseudoinverse ((U'U)^T)^(-1) * U'
+		//so we don't assume orthogonality. This assumes invertibility of (U'U)^T (so we can't cut too many rows...).
 		
-		//note that sB is actually the transpose of the pseudoinverse of B
+		//note that sU is actually the transpose of the pseudoinverse of U
 		//but we take the transpose again here, so it cancels out.
 		
-		sgemv("T",&n,&d,&irho,sB,&n,junk,&oneinc,&zero,w,&oneinc);//multiply by the pseudoinverse and divide by rho
+		sgemv("T",&n,&d,&irho,sU,&n,junk,&oneinc,&zero,w,&oneinc);//multiply by the pseudoinverse and divide by rho
 
 		//prep for 3.4
-		sgemv("N",&n,&d,&one,B,&n,w,&oneinc,&zero,u,&oneinc);//calculate u=Bw;
+		sgemv("N",&n,&d,&one,U,&n,w,&oneinc,&zero,u,&oneinc);//calculate Uw=U*w;
 
 		//create the inside of the softthresh
 		for(jj=0;jj<n;jj++){	
-			junk[jj]=v[jj]-u[jj]-y[jj];
+			junk[jj]=v[jj]-Uw[jj]-y[jj];
 		}
 	
 		//use the soft thresh
 		shrink(junk,s,1/(1+rho),n);
 
-		//we already have u = Bw, so use 3.5 and calculate y.
+		//we already have Uw = U*w, so use 3.5 and calculate y.
 		for(jj=0;jj<n;jj++){	
-			y[jj]=y[jj]+rho*(s[jj]+u[jj]-v[jj]);
+			y[jj]=y[jj]+rho*(s[jj]+Uw[jj]-v[jj]);
 		}
 	}
-free(u);
+free(Uw);
 free(junk);
 }
 

@@ -2,20 +2,24 @@
 
 
 
-void grasta_step (float* B, float* v, float* w, int n, int d, float eta,float rho, int maxiter){
+void grasta_step (float* U, float* v, float* w, int n, int d, float eta,float rho, int maxiter){
+
+	// U is n x d
+	// v is n x 1
+	// w is d x 1
 
 	float one=1.0f;
 	int oneinc=1;
 	float zero=0.0f;
 	int ii,jj;
 	//float* w=(float*)malloc(n*sizeof(float));
-	float* s=(float*)calloc(n,sizeof(float));
-	float* y=(float*)calloc(n,sizeof(float));
-	float* g1=(float*)malloc(n*sizeof(float));
-	float* uw=(float*)malloc(n*sizeof(float));
-	float* Ug2=(float*)malloc(n*sizeof(float));
-	float* g2=(float*)malloc(n*sizeof(float));
-	float* g=(float*)malloc(n*sizeof(float));
+	float* s=(float*)calloc(n,sizeof(float)); // s is n x 1
+	float* y=(float*)calloc(n,sizeof(float)); // y is n x 1
+	float* g1=(float*)malloc(n*sizeof(float)); // g1 is n x 1
+	float* uw=(float*)malloc(n*sizeof(float)); // U*w is n x 1
+	float* Ug2=(float*)malloc(n*sizeof(float)); // Ug2 is n x 1
+	float* g2=(float*)malloc(d*sizeof(float)); // g2 is d x 1 CHECK TODO
+	float* g=(float*)malloc(n*sizeof(float)); // g is n x 1
 	float sigma;
 	float normg;
 	float normw;
@@ -24,26 +28,25 @@ void grasta_step (float* B, float* v, float* w, int n, int d, float eta,float rh
 
 
 	//update w,s,y
-	larb_orthogonal_alt(B,n,d,v,w,s,y,rho,maxiter);
+	larb_orthogonal_alt(U,n,d,v,w,s,y,rho,maxiter);
 
 
 	//3.8: calculate Γ_1 (stored in g1)
 
 	//uw = Uw
-	sgemv("N",&n,&d,&one,B,&n,w,&oneinc,&zero,uw,&oneinc); 
+	sgemv("N",&n,&d,&one,U,&n,w,&oneinc,&zero,uw,&oneinc);
 	for(jj=0;jj<m;jj++){
 		g1[jj]=y[jj]+rho*(uw[jj]+s[jj]-v[jj]);
 	}
 
 	//3.9: calculate Γ_2 (stored in g2)
 
-	sgemv("T",&n,&d,&one,B,&n,g1,&oneinc,&zero,g2,&oneinc);
-
+	sgemv("T",&n,&d,&one,U,&n,g1,&oneinc,&zero,g2,&oneinc); // CHECK DIMENSION TODO
 
 	//3.10: calculate Γ. 
 
-	//g2 = U(Γ_2)
-	sgemv("N",&n,&d,&one,B,&n,g2,&oneinc,&zero,Ug2,&oneinc);
+	//Ug2 = U(Γ_2)
+	sgemv("N",&n,&d,&one,U,&n,g2,&oneinc,&zero,Ug2,&oneinc);
 
 	//final calculation of Γ (stored in g)
 	for(jj=0;jj<n;jj++){
@@ -78,7 +81,7 @@ void grasta_step (float* B, float* v, float* w, int n, int d, float eta,float rh
 	//note that g1 is the temporary matrix from the last line. 
 	for(ii=0;ii<n;ii++){//row 
 		for(jj=0;jj<d;jj++){//column
-			B[jj*n+ii]=B[jj*n+ii]+g1[ii]*w[jj];
+			U[jj*n+ii]=U[jj*n+ii]+g1[ii]*w[jj];
 		}
 	}
 
@@ -113,27 +116,27 @@ void grasta_step (float* B, float* v, float* w, int n, int d, float eta,float rh
 
 
 
-void grasta_step_subsample(float* B, float* v, float* w, int n, int d, float eta,float rho, int maxiter, int* use_index, int use_number){
+void grasta_step_subsample(float* U, float* v, float* w, int n, int d, float eta,float rho, int maxiter, int* use_index, int use_number){
 
 	float one=1.0f;
 	int oneinc=1;
 	float zero=0.0f;
 	int ii,jj;
-	float* tB;
+	float* tU;
 	float* smallv;
-	float* smallB;
-	float* pismallB;
+	float* smallU;
+	float* pismallU;
 //	float* w=(float*)malloc(n*sizeof(float));
-	float* s=(float*)calloc(use_number,sizeof(float));
-	float* y=(float*)calloc(use_number,sizeof(float));
+	float* s=(float*)calloc(use_number,sizeof(float)); // use_number x 1
+	float* y=(float*)calloc(use_number,sizeof(float)); // use_number x 1
 
 
-	float* g1=(float*)malloc(use_number*sizeof(float));
-	float* uw=(float*)malloc(use_number*sizeof(float));
-	float* Uw=(float*)malloc(n*sizeof(float));
-	float* Ug2=(float*)malloc(d*sizeof(float));
-	float* g2=(float*)malloc(n*sizeof(float));
-	float* g=(float*)malloc(n*sizeof(float));
+	float* g1=(float*)malloc(use_number*sizeof(float)); // use_number x 1
+	float* uw=(float*)malloc(use_number*sizeof(float)); // use_number x 1
+	float* Uw=(float*)malloc(n*sizeof(float)); // n x 1
+	float* Ug2=(float*)malloc(n*sizeof(float)); // Ug2 is n x 1
+	float* g2=(float*)malloc(d*sizeof(float)); // g2 is d x 1
+	float* g=(float*)malloc(n*sizeof(float)); // g is n x 1
 	float sigma;
 	float normg;
 	float normw;
@@ -170,23 +173,19 @@ void grasta_step_subsample(float* B, float* v, float* w, int n, int d, float eta
 	//(since we normalized earlier)
 	//but these are mean 1, so it's more like 0-2 or something (depends on dist)
 
-	//subsample B
-	//B is bei
-	smallB=(float*)malloc(use_number*d*sizeof(float));
+	//subsample U
+	smallU=(float*)malloc(use_number*d*sizeof(float));
+	// copying sampled data from U based on use_index (column by column) (Note that use_index was saved row by row)
 	for (jj=0;jj<d;jj++){
-		//for each image?
-		//but it's not...
-		
 		for (ii=0;ii<use_number;ii++){
-			//for each pixel we want to copy.
-			smallB[jj*use_number+ii]=B[jj*n+use_index[ii]];
+			smallU[jj*use_number+ii]=U[jj*n+use_index[ii]];
 		}
 	}
 
-	//make a copy of tB because pismallB destroys the argument.
-	tB=(float*)malloc(use_number*d*sizeof(float));
+	//make a copy of tU because pismallU destroys the argument.
+	tU=(float*)malloc(use_number*d*sizeof(float));
 	for (ii=0;ii<use_number*d;ii++){
-		tB[ii]=smallB[ii];
+		tU[ii]=smallU[ii];
 	}
 
 //	fprintf(stderr,"1 in grasta step \n");
@@ -196,11 +195,11 @@ void grasta_step_subsample(float* B, float* v, float* w, int n, int d, float eta
 //	fprintf(stderr,"t1=%g\n",elapsed(t0,t1));
 
 	//get the qr decomposition (specifically, its transpose)
-	pismallB=(float*)malloc(use_number*d*sizeof(float));
-	pinv_qr_m_big(tB,pismallB,use_number,d);
+	pismallU=(float*)malloc(use_number*d*sizeof(float));
+	pinv_qr_m_big(tU,pismallU,use_number,d);
 
 //update w subsampled, s subsampled, y subsampled
-larb_no_orthogonal_alt(pismallB,smallB,use_number,d,smallv,w,s,y,rho,maxiter);
+larb_no_orthogonal_alt(pismallU,smallU,use_number,d,smallv,w,s,y,rho,maxiter);
 
 
 //	ticks t2 = getticks();
@@ -209,14 +208,14 @@ larb_no_orthogonal_alt(pismallB,smallB,use_number,d,smallv,w,s,y,rho,maxiter);
 //[s_t, w, ldual, ~] = sparse_residual_pursuit(U_Omega, y_Omega, OPTS)
 
 /*
-	fprintf(stderr,"B[5]=%f\n",B[5]);
+	fprintf(stderr,"U[5]=%f\n",U[5]);
 	fprintf(stderr,"w[5]=%f\n",w[5]);
 */
 
 	//calculate Γ_1 (stored in g1)
 
 //calculate uw
-sgemv("N",&use_number,&d,&one,smallB,&use_number,w,&oneinc,&zero,uw,&oneinc);//uw=B_idx w
+sgemv("N",&use_number,&d,&one,smallU,&use_number,w,&oneinc,&zero,uw,&oneinc);//uw=U_idx w
 
 	for(jj=0;jj<use_number;jj++){
 		g1[jj]=y[jj]+rho*(uw[jj]+s[jj]-smallv[jj]);//-s?   check me!  todo!!!
@@ -224,10 +223,10 @@ sgemv("N",&use_number,&d,&one,smallB,&use_number,w,&oneinc,&zero,uw,&oneinc);//u
 
 //calculate Γ_2 (stored in g2)
 
-sgemv("T",&use_number,&d,&one,smallB,&use_number,g1,&oneinc,&zero,g2,&oneinc);//n x use_number g2t=smallB'*g1
+sgemv("T",&use_number,&d,&one,smallU,&use_number,g1,&oneinc,&zero,g2,&oneinc);//n x use_number g2t=smallU'*g1
 
 
-sgemv("N",&n,&d,&one,B,&m,g2,&oneinc,&zero,Ug2,&oneinc);//m x n Ug2=B*g2
+sgemv("N",&n,&d,&one,U,&n,g2,&oneinc,&zero,Ug2,&oneinc);//m x n Ug2=U*g2
 								//gamma_2 = U0 * UtDual_omega;
 //	ticks t3 = getticks();
 //	fprintf(stderr,"t3=%g\n",elapsed(t2,t3));
@@ -284,7 +283,7 @@ sgemv("N",&n,&d,&one,B,&m,g2,&oneinc,&zero,Ug2,&oneinc);//m x n Ug2=B*g2
 
 		for(ii=0;ii<m;ii++){//row
 			for(jj=0;jj<n;jj++){//column
-				B[jj*m+ii]=B[jj*m+ii]+g2[ii]*w[jj];
+				U[jj*m+ii]=U[jj*m+ii]+g2[ii]*w[jj];
 			}
 		}
 	}
@@ -292,6 +291,8 @@ sgemv("N",&n,&d,&one,B,&m,g2,&oneinc,&zero,Ug2,&oneinc);//m x n Ug2=B*g2
 
 //	ticks t4 = getticks();
 //	fprintf(stderr,"t4=%g\n",elapsed(t3,t4));
+
+sgemv("N", &n, &d, &one, U, &n, w, &oneinc, &zero, Uw, &oneinc);//Uw=U*w
 
 cs=0;
 ss=0;
@@ -305,14 +306,14 @@ alpha=(float*)calloc(n,sizeof(float));
 if (normw>0){
 	cs=(cos(eta*sigma)-1);
 	for (ii=0;ii<n;ii++){
-		alpha[ii]=uw[ii]/normw^2;
-		w[ii]=scale*w[ii];
+		alpha[ii]=Uw[ii]/normw^2;
+		w[ii]=scale*w[ii]; //what is scale for?
 	}
 }
 
 //construct the second interior term
 float* beta;
-beta=(float*)calloc(d,sizeof(float));
+beta=(float*)calloc(n,sizeof(float));
 if (normg>0){
 	for (ii=0;ii<n;ii++){
 		beta[ii]=g[ii]/sigma;
@@ -320,17 +321,13 @@ if (normg>0){
 	ss=sin(eta*sigma);
 }
 
-sgemv("N",&n,&d,&one,B,&n,alpha,&oneinc,&zero,Uw,&oneinc);//Uw=Bw
-
-
 //	ticks t5 = getticks();
 //	fprintf(stderr,"t5=%g\n",elapsed(t4,t5));
-
 
 //basically the entire 3.13 calculation at once.
 for(ii=0;ii<n;ii++){//row
 	for(jj=0;jj<d;jj++){//column
-		B[jj*m+ii]=B[jj*m+ii]+(cs*alpha[ii] + ss*beta[ii]) * w[jj];
+		U[jj*m+ii]=U[jj*m+ii]+(cs*alpha[ii] - ss*beta[ii]) * w[jj];
 	}
 }
 
@@ -359,9 +356,9 @@ U0 = U0 + step;
 	free(g2);
 	free(g);
 	free(smallv);
-	free(smallB);
-	free(tB);
-	free(pismallB);
+	free(smallU);
+	free(tU);
+	free(pismallU);
 }
 
 

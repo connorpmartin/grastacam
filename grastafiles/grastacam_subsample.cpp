@@ -25,8 +25,6 @@
 
 int main( int argc, char* argv[] ) {
 
-
-
 //params assignment
 
 srand(time(0));
@@ -34,28 +32,25 @@ float one=1.0f;
 int oneinc=1;
 float zero=0.0f;
 
-//step size for subspace update. eta in original paper
-float eta=.000001;
+float eta=.000001; //step size for subspace update. eta in original paper
 
-float rho=1; //some sort of step size for the w update (weights) and for the y update (lagrangian dual)
+float rho=1; //some sort of step size for the w update (weights) and for the y update (lagrangian dual). rho in original paper
 
-float *B; //guess for the subspace
+float *U; //guess for the subspace. n x d
 
 float *tB; //unused?
 
 float *pB; //unused?
 
+float *v; //our guess for the image. n x 1
 
-float *v; //our guess for the image 
-
-float *w; //weights of the subspace (which form the image's background)
+float *w; //weights of the subspace (which form the image's background). d x 1
 
 
-float *Uw; //our guess for the background of the image
-float *s; //our guess for the foreground of the image
+float *Uw; //our guess for the background of the image. n x 1
+float *s; //our guess for the foreground of the image. n x 1
 
-//note: sgemv is just efficient matrix operation
-
+//note: sgemv is just efficient matrix operation and sgeqrf is just QR factorization using householder
 
 int m,p,n,d;
 
@@ -63,23 +58,18 @@ int m,p,n,d;
 int m=1.5*240;
 int p=1.5*320;
 
-//n in the paper. Vector dimension / pixels in image.
+//n in the paper. Vector dimension (pixels) in image.
 n=m*p;
 
 //d in the paper. Subspace rank.
 d=9;
 
-
 //guess for subspace
-B=(float*)malloc(n*d*sizeof(float));
+U=(float*)malloc(n*d*sizeof(float));
 
-
-
-
-
-//randomly assigned
+//randomly assigned initial subspace
 for (ii=0;ii<n*d;ii++){
-	B[ii]=rand();
+	U[ii]=rand();
 }
 
 w=(float*)malloc(d*sizeof(float));
@@ -88,30 +78,27 @@ Uw=(float*)malloc(n*sizeof(float));
 s=(float*)malloc(n*sizeof(float));
 
 
-float *tau;
+float *tau; //out scale factors of householder reflections. n x 1
 tau=(float*)malloc(n*sizeof(float));
 
-float  twork=0;
-int lwork=-1;
-int info;
+float  twork=0; //out for sgeqrf
+int lwork=-1; //out dimension of twork
+int info; // out for sgeqrf
 
-//there is literally no other place where B could be made orthogonal, so this is probably it.
+//there is literally no other place where U could be made orthogonal, so this is probably it.
 
-
-
-//a very complicated way of making B orthogonal.
-// A
-sgeqrf( &n, &d, B, &n, tau, &twork, &lwork, &info);	
+//a very complicated way of making U orthogonal.
+sgeqrf( &n, &d, U, &n, tau, &twork, &lwork, &info);	
 lwork=(int) twork;	
 //	printf("\n lwork=%d\n", lwork );		
 float *work;
 work=(float*)malloc(lwork*sizeof(float));
-sgeqrf(&n, &d, B, &n, tau, work, &lwork, &info );
+sgeqrf(&n, &d, U, &n, tau, work, &lwork, &info );
 
-//multiply out the reflectors (B currently contains a mess which was returned by sgeqrf)
-sorgqr(&n, &d, &d, B, &n, tau, work, &lwork, &info );
+//multiply out the reflectors (U currently contains a mess which was returned by sgeqrf)
+sorgqr(&n, &d, &d, U, &n, tau, work, &lwork, &info );
 
-//at the end of this, we have factored B into QR, and set B = Q.
+//at the end of this, we have factored U into QR, and set U = Q.
 //maybe use better QR algorithm? room for improvement
 
 
@@ -175,7 +162,7 @@ double  rm=double(RAND_MAX);
 
 int use_number;
 int* use_index;
-use_index=(int*)malloc(m*sizeof(int));
+use_index=(int*)malloc(n*sizeof(int)); //changed from m to n, because masking rows from U (n x d)
 
 int tcount=0;
 
@@ -204,7 +191,7 @@ while( 1 ) {
 	//	
 	rm=sample_percent*((double)RAND_MAX);
 	use_number=0;	
-	for (ii=0;ii<n;ii++){
+	for (ii=0;ii<n;ii++){ //sampling rows of U with sample_percent chance
 		if (rand()<rm){ //this has a sample_percent chance of happening
 			use_index[use_number]=ii;
 			use_number++;			
@@ -213,21 +200,21 @@ while( 1 ) {
 //	fprintf(stderr,"use_number=%d\n",use_number);
 	
 	//perform a gradient step on w and s, as well as the dual. 
-	//Then update B, and repeat.
+	//Then update U, and repeat.
 
 	//NOTE: an intelligent subsampling strategy might be a nice improvement here.
 
 
 	if (turbo<5) {
 		//update using the entire image.
-		grasta_step (B,v,w,n,d,eta,rho,20);
+		grasta_step (U,v,w,n,d,eta,rho,20);
 	}
 	else{
 		//iterate via a random subsample of the image (by sample_percent).
-		grasta_step_subsample (B,v,w,n,d,eta,rho,40,use_index,use_number);
+		grasta_step_subsample (U,v,w,n,d,eta,rho,40,use_index,use_number);
 	}
 	//Calculate U * w, our predicted background.
-	sgemv("N",&n,&d,&one,B,&n,w,&oneinc,&zero,Uw,&oneinc);
+	sgemv("N",&n,&d,&one,U,&n,w,&oneinc,&zero,Uw,&oneinc);
 
 	//Calculate an l0 norm of background vs image with a threshold of .05
 	//or by uncommenting, you use a sort of thresholded l1.
