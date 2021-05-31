@@ -69,7 +69,7 @@ float *data = (float*)malloc(n*numIters*sizeof(float));
 U=(float*)malloc(n*d*sizeof(float));
 
 for(int i=0;i<n*d;++i){
-    data[i] = rand()
+    data[i] = rand();
 }
 
 
@@ -129,7 +129,11 @@ for(int i=0;i<numIters;i++){
 //output final guess for video
 
 
-free(U)
-free(data)
-free()
+free(U);
+free(data);
+free(tau);
+free(v);
+free(w);
+free(s);
+free(Uw);
 }
